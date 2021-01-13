@@ -2,11 +2,11 @@
  * Copyright (c) 2020
  *
  * by Rafael Angel Aznar Aparici (rafaaznar at gmail dot com) & 2020 DAW students
- * 
+ *
  * TROLLEYES: Free Open Source Shopping Site
  *
  *
- * Sources at:                https://github.com/rafaelaznar/trolleyesSBserver                            
+ * Sources at:                https://github.com/rafaelaznar/trolleyesSBserver
  * Database at:               https://github.com/rafaelaznar/trolleyesSBserver
  * Client at:                 https://github.com/rafaelaznar/TrolleyesAngularJSClient
  *
@@ -33,11 +33,16 @@
 package net.ausiasmarch.trolleyesSBserver.api;
 
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.servlet.http.HttpSession;
 import net.ausiasmarch.trolleyesSBserver.entity.CarritoEntity;
 import net.ausiasmarch.trolleyesSBserver.entity.ProductoEntity;
+import net.ausiasmarch.trolleyesSBserver.entity.UsuarioEntity;
 import net.ausiasmarch.trolleyesSBserver.repository.CarritoRepository;
 import net.ausiasmarch.trolleyesSBserver.repository.ProductoRepository;
+import net.ausiasmarch.trolleyesSBserver.service.CarritoService;
+import net.ausiasmarch.trolleyesSBserver.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -63,74 +68,202 @@ public class CarritoController {
 
     @Autowired
     CarritoRepository oCarritoRepository;
-    
+
     @Autowired
     ProductoRepository oProductoRepository;
 
+    @Autowired
+    CarritoService oCarritoService;
+
+    @Autowired
+    UsuarioRepository oUsuarioRepository;
+
+    //ADD añadir un producto al carrito con una determinada cantidad -> params: producto, cantidad (POST)
+    //REDUCE quitar un producto del carrito en una determinada cantidad -> params: producto, cantidad (DELETE)
+    //REMOVE quitar un producto totalmente del carrito -> params: producto (DELETE)
+    //CLEAR vaciar el carrito completamente (DELETE)
+    //BUY comprar los productos en el carrito (PUT)
+    //
+    //PAGE (GET)
+    //GET (GET)
+    @PostMapping("/{id_producto}/{cantidad}")
+    public ResponseEntity<?> add(@PathVariable(value = "id_producto") Long id_producto, @PathVariable(value = "cantidad") int cantidad) {
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            try {
+                return new ResponseEntity<>(oCarritoService.insert(oUsuarioEntity, id_producto, cantidad), HttpStatus.OK);
+            } catch (Exception ex) {
+                return new ResponseEntity<>(ex.getMessage(), HttpStatus.UNAUTHORIZED);
+            }
+        }
+    }
+
+    @DeleteMapping("/{id_carrito}/{cantidad}")
+    public ResponseEntity<?> reduce(@PathVariable(value = "id_carrito") Long id_carrito, @PathVariable(value = "cantidad") int cantidad) {
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            try {
+                return new ResponseEntity<>(oCarritoService.reduce(oUsuarioEntity, id_carrito, cantidad), HttpStatus.OK);
+            } catch (Exception ex) {
+                return new ResponseEntity<>(ex.getMessage(), HttpStatus.UNAUTHORIZED);
+            }
+        }
+    }
+
+    @DeleteMapping("/{id_carrito}")
+    public ResponseEntity<?> delete(@PathVariable(value = "id_carrito") Long id_carrito) {
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            try {
+                oCarritoService.remove(oUsuarioEntity, id_carrito);
+                return new ResponseEntity<>(null, HttpStatus.OK);
+            } catch (Exception ex) {
+                return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_MODIFIED);
+            }
+        }
+    }
+
+    @DeleteMapping("/")
+    public ResponseEntity<?> empty() {
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            try {
+                oCarritoService.clear(oUsuarioEntity);
+                return new ResponseEntity<>(null, HttpStatus.OK);
+            } catch (Exception ex) {
+                return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_MODIFIED);
+            }
+        }
+    }
+
+    @PutMapping("/")
+    public ResponseEntity<?> buy() {
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            try {
+                oCarritoService.purchase(oUsuarioEntity);
+                return new ResponseEntity<>(null, HttpStatus.OK);
+            } catch (Exception ex) {
+                return new ResponseEntity<>(ex.getMessage(), HttpStatus.NOT_MODIFIED);
+            }
+        }
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<?> get(@PathVariable(value = "id") Long id) {
-        if (oCarritoRepository.existsById(id)) {
-            return new ResponseEntity<CarritoEntity>(oCarritoRepository.getOne(id), HttpStatus.OK);
-        } else {
-            return new ResponseEntity<CarritoEntity>(oCarritoRepository.getOne(id), HttpStatus.NOT_FOUND);
+
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else { //si hay sesion
+            if (oUsuarioEntity.getTipousuario().getId() == 1) {
+                if (oCarritoRepository.existsById(id)) {
+                    return new ResponseEntity<CarritoEntity>(oCarritoRepository.getOne(id), HttpStatus.OK);
+                } else {
+                    return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+                }
+            } else { //es cliente
+                //return new ResponseEntity<CarritoEntity>(oCarritoRepository.findByIdAndUsuario(id, oUsuarioEntity), HttpStatus.OK);
+                CarritoEntity oCarritoEntity = oCarritoRepository.getOne(id);
+                if (oCarritoEntity != null) {
+                    if (oCarritoEntity.getUsuario().getId().equals(oUsuarioEntity.getId())) {
+                        return new ResponseEntity<CarritoEntity>(oCarritoEntity, HttpStatus.OK);
+                    } else {
+                        return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+                    }
+                } else {
+                    return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+                }
+
+            }
         }
     }
 
     @GetMapping("/count")
     public ResponseEntity<?> count() {
-        return new ResponseEntity<Long>(oCarritoRepository.count(), HttpStatus.OK);
+
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+        CarritoEntity oCarritoEntity = new CarritoEntity();
+
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            if (oUsuarioEntity.getTipousuario().getId() == 1) {
+                return new ResponseEntity<Long>(oCarritoRepository.count(), HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+            }
+        }
     }
 
     @GetMapping("/all")
     public ResponseEntity<?> all() {
-        if (oCarritoRepository.count() <= 1000) {
-            return new ResponseEntity<List<CarritoEntity>>(oCarritoRepository.findAll(), HttpStatus.OK);
+
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+        CarritoEntity oCarritoEntity = new CarritoEntity();
+
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
         } else {
-            return new ResponseEntity<>(null, HttpStatus.PAYLOAD_TOO_LARGE);
+            if (oUsuarioEntity.getTipousuario().getId() == 1) {
+                if (oCarritoRepository.count() <= 1000) {
+                    return new ResponseEntity<List<CarritoEntity>>(oCarritoRepository.findAll(), HttpStatus.OK);
+                } else {
+                    return new ResponseEntity<>(null, HttpStatus.PAYLOAD_TOO_LARGE);
+                }
+            } else {
+                if (oCarritoEntity.getUsuario().getId().equals(oUsuarioEntity.getId())) {
+                    return new ResponseEntity<List<CarritoEntity>>(oCarritoRepository.findAll(), HttpStatus.OK);
+                } else {
+                    return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+                }
+            }
         }
     }
 
-    @PostMapping("/")
-    public ResponseEntity<?> create(@RequestBody CarritoEntity oCarritoEntity) {
-        if (oCarritoEntity.getId() == null) {
-            return new ResponseEntity<CarritoEntity>(oCarritoRepository.save(oCarritoEntity), HttpStatus.OK);
-        } else {
-            return new ResponseEntity<Long>(0L, HttpStatus.NOT_MODIFIED);
-        }
-    }
-    
-    @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable(value = "id") Long id) {
-        oCarritoRepository.deleteById(id);
-        if (oCarritoRepository.existsById(id)) {
-            return new ResponseEntity<Long>(id, HttpStatus.NOT_MODIFIED);
-        } else {
-            return new ResponseEntity<Long>(0L, HttpStatus.OK);
-        }
-    }
-    
-    @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable(value = "id") Long id, @RequestBody CarritoEntity oCarritoEntity) {
-        oCarritoEntity.setId(id);
-        if (oCarritoRepository.existsById(id)) {
-            return new ResponseEntity<CarritoEntity>(oCarritoRepository.save(oCarritoEntity), HttpStatus.OK);
-        } else {
-            return new ResponseEntity<Long>(0L, HttpStatus.NOT_MODIFIED);
-        }
-    }
-    
     @GetMapping("/page")
-    public ResponseEntity<?> getPage(@PageableDefault(page = 0, size = 10, direction = Direction.ASC) Pageable oPageable) {        
-        Page<CarritoEntity> oPage= oCarritoRepository.findAll(oPageable);            
-        return new ResponseEntity<Page<CarritoEntity>>(oPage, HttpStatus.OK);        
+    public ResponseEntity<?> getPage(@PageableDefault(page = 0, size = 10, direction = Direction.ASC) Pageable oPageable) {
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            if (oUsuarioEntity.getTipousuario().getId() == 1) {
+                return new ResponseEntity<Page<CarritoEntity>>(oCarritoRepository.findAll(oPageable), HttpStatus.OK);
+            } else { //ver sólo los items del cliente en sesion
+                return new ResponseEntity<Page<CarritoEntity>>(oCarritoRepository.findByUsuario(oUsuarioEntity, oPageable), HttpStatus.OK);
+            }
+        }
     }
-    
+
     @GetMapping("/page/producto/{id}")
     public ResponseEntity<?> getPageXProducto(@PageableDefault(page = 0, size = 10, direction = Direction.ASC) Pageable oPageable, @PathVariable(value = "id") Long id) {
 
         if (oProductoRepository.existsById(id)) {
             ProductoEntity oProductoEntity = oProductoRepository.getOne(id);
             Page<CarritoEntity> oPage = oCarritoRepository.findByProducto(oProductoEntity, oPageable);
+            return new ResponseEntity<Page<CarritoEntity>>(oPage, HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>(null, HttpStatus.OK);
+        }
+    }
+
+    @GetMapping("/page/usuario/{id}")
+    public ResponseEntity<?> getPageXUsuario(@PageableDefault(page = 0, size = 10, direction = Direction.ASC) Pageable oPageable, @PathVariable(value = "id") Long id) {
+
+        if (oUsuarioRepository.existsById(id)) {
+            UsuarioEntity oUsuarioEntity = oUsuarioRepository.getOne(id);
+            Page<CarritoEntity> oPage = oCarritoRepository.findByUsuario(oUsuarioEntity, oPageable);
             return new ResponseEntity<Page<CarritoEntity>>(oPage, HttpStatus.OK);
         } else {
             return new ResponseEntity<>(null, HttpStatus.OK);

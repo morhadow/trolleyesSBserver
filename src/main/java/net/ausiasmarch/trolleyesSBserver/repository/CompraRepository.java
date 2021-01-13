@@ -32,9 +32,11 @@
  */
 package net.ausiasmarch.trolleyesSBserver.repository;
 
+import java.util.List;
 import net.ausiasmarch.trolleyesSBserver.entity.CompraEntity;
 import net.ausiasmarch.trolleyesSBserver.entity.FacturaEntity;
 import net.ausiasmarch.trolleyesSBserver.entity.ProductoEntity;
+import net.ausiasmarch.trolleyesSBserver.entity.UsuarioEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -50,9 +52,14 @@ public interface CompraRepository extends JpaRepository<CompraEntity, Long> {
     Page<CompraEntity> findByProducto(ProductoEntity oProductoEntity, Pageable oPageable);
 
 //    public Page<CompraEntity> findById_producto(Long id, Pageable oPageable);
-    
     @Query(value = "SELECT * FROM compra c WHERE c.id_factura = :id_factura", nativeQuery = true)
     Page<CompraEntity> findByCompraXFactura(Long id_factura, Pageable pageable);
-    
+
     Page<CompraEntity> findByFactura(FacturaEntity oFacturaEntity, Pageable oPageable);
+
+    @Query(value = "SELECT * FROM compra where id_factura IN (SELECT id FROM factura WHERE id_usuario = :id_usuario)", nativeQuery = true)
+    Page<CompraEntity> findByCompraXIdUsuario(Long id_usuario, Pageable pageable);    
+
+    List<CompraEntity> findByFactura(FacturaEntity oFacturaEntity);
+
 }

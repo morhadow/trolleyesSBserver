@@ -32,11 +32,33 @@
  */
 package net.ausiasmarch.trolleyesSBserver.repository;
 
+import java.util.List;
 import net.ausiasmarch.trolleyesSBserver.entity.ProductoEntity;
+import net.ausiasmarch.trolleyesSBserver.entity.TipoproductoEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface ProductoRepository extends JpaRepository<ProductoEntity, Long>  {
+public interface ProductoRepository extends JpaRepository<ProductoEntity, Long> {
+
+    @Query(value = "SELECT * FROM productos p WHERE p.id_tipoproducto = :id_tipoproducto", nativeQuery = true)
+    Page<ProductoEntity> findByCompraXFactura(Long id_tipoproducto, Pageable pageable);
+
+    Page<ProductoEntity> findByTipoproducto(TipoproductoEntity oTipoproductoEntity, Pageable oPageable);
+
     
+    List<ProductoEntity> findTop10ByOrderByDescuentoDesc();
+    List<ProductoEntity> findTop50ByOrderByDescuentoDesc();
+    List<ProductoEntity> findTop100ByOrderByDescuentoDesc();
+    List<ProductoEntity> findTop10ByOrderByDescuentoAsc();
+    List<ProductoEntity> findTop50ByOrderByDescuentoAsc();
+    List<ProductoEntity> findTop100ByOrderByDescuentoAsc();
+
+
+    Page<ProductoEntity> findByCodigoContainingIgnoreCaseOrNombreContainingIgnoreCaseOrTipoproductoNombreContainingIgnoreCase(String codigo, String descripcion, String nombre, Pageable pageable);
+
+
 }

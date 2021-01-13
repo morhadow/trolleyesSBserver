@@ -2,11 +2,11 @@
  * Copyright (c) 2020
  *
  * by Rafael Angel Aznar Aparici (rafaaznar at gmail dot com) & 2020 DAW students
- * 
+ *
  * TROLLEYES: Free Open Source Shopping Site
  *
  *
- * Sources at:                https://github.com/rafaelaznar/trolleyesSBserver                            
+ * Sources at:                https://github.com/rafaelaznar/trolleyesSBserver
  * Database at:               https://github.com/rafaelaznar/trolleyesSBserver
  * Client at:                 https://github.com/rafaelaznar/TrolleyesAngularJSClient
  *
@@ -32,7 +32,16 @@
  */
 package net.ausiasmarch.trolleyesSBserver.api;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.servlet.http.HttpSession;
 import net.ausiasmarch.trolleyesSBserver.entity.FacturaEntity;
 import net.ausiasmarch.trolleyesSBserver.entity.UsuarioEntity;
@@ -44,6 +53,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -65,7 +75,7 @@ public class FacturaController {
 
     @Autowired
     FacturaRepository oFacturaRepository;
-    
+
     @Autowired
     UsuarioRepository oUsuarioRepository;
 
@@ -74,10 +84,35 @@ public class FacturaController {
 
     @GetMapping("/{id}")
     public ResponseEntity<?> get(@PathVariable(value = "id") Long id) {
-        if (oFacturaRepository.existsById(id)) {
-            return new ResponseEntity<FacturaEntity>(oFacturaRepository.getOne(id), HttpStatus.OK);
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+        FacturaEntity oFacturaEntity = new FacturaEntity();
+
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
         } else {
-            return new ResponseEntity<FacturaEntity>(oFacturaRepository.getOne(id), HttpStatus.NOT_FOUND);
+            if (oUsuarioEntity.getTipousuario().getId() == 1) { //administrador
+                if (oFacturaRepository.existsById(id)) {
+                    return new ResponseEntity<FacturaEntity>(oFacturaRepository.getOne(id), HttpStatus.OK);
+                } else {
+                    return new ResponseEntity<FacturaEntity>(oFacturaRepository.getOne(id), HttpStatus.NOT_FOUND);
+                }
+            } else {  //cliente
+                oFacturaEntity = oFacturaRepository.getOne(id);
+                if (oFacturaEntity != null) {
+                    if (oFacturaEntity.getUsuario().getId().equals(oUsuarioEntity.getId())) {
+                        return new ResponseEntity<FacturaEntity>(oFacturaRepository.getOne(id), HttpStatus.OK);
+                    } else {
+                        return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+                    }
+                } else {
+                    return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+                }
+//                if (oFacturaEntity.getUsuario().getId().equals(oUsuarioEntity.getId())) {  //los datos pedidos por el cliente son sus propios datos?
+//                    return new ResponseEntity<FacturaEntity>(oFacturaRepository.getOne(id), HttpStatus.OK);
+//                } else {
+//                    return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+//                }
+            }
         }
     }
 
@@ -93,21 +128,52 @@ public class FacturaController {
     @PostMapping("/")
     public ResponseEntity<?> create(@RequestBody FacturaEntity oFacturaEntity) {
 
-        if (oFacturaEntity.getId() == null) {
-            return new ResponseEntity<FacturaEntity>(oFacturaRepository.save(oFacturaEntity), HttpStatus.OK);
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
         } else {
-            return new ResponseEntity<Long>(0L, HttpStatus.NOT_MODIFIED);
+
+            if (oUsuarioEntity.getTipousuario().getId() == 1) { //administrador
+
+                if (oFacturaEntity.getId() == null) {
+                    return new ResponseEntity<FacturaEntity>(oFacturaRepository.save(oFacturaEntity), HttpStatus.OK);
+                } else {
+                    return new ResponseEntity<Long>(0L, HttpStatus.NOT_MODIFIED);
+                }
+
+            } else {  //cliente
+
+                return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+            }
         }
+
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable(value = "id") Long id) {
-        oFacturaRepository.deleteById(id);
-        if (oFacturaRepository.existsById(id)) {
-            return new ResponseEntity<Long>(id, HttpStatus.NOT_MODIFIED);
+
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
         } else {
-            return new ResponseEntity<Long>(0L, HttpStatus.OK);
+
+            if (oUsuarioEntity.getTipousuario().getId() == 1) { //administrador
+
+                oFacturaRepository.deleteById(id);
+                if (oFacturaRepository.existsById(id)) {
+                    return new ResponseEntity<Long>(id, HttpStatus.NOT_MODIFIED);
+                } else {
+                    return new ResponseEntity<Long>(0L, HttpStatus.OK);
+                }
+
+            } else {  //cliente
+
+                return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+            }
         }
+
     }
 
     @GetMapping("/count")
@@ -117,20 +183,53 @@ public class FacturaController {
 
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable(value = "id") Long id, @RequestBody FacturaEntity oFacturaEntity) {
-        oFacturaEntity.setId(id);
-        if (oFacturaRepository.existsById(id)) {
-            return new ResponseEntity<FacturaEntity>(oFacturaRepository.save(oFacturaEntity), HttpStatus.OK);
+
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
         } else {
-            return new ResponseEntity<Long>(0L, HttpStatus.NOT_MODIFIED);
+
+            if (oUsuarioEntity.getTipousuario().getId() == 1) { //administrador
+
+                oFacturaEntity.setId(id);
+                if (oFacturaRepository.existsById(id)) {
+                    return new ResponseEntity<FacturaEntity>(oFacturaRepository.save(oFacturaEntity), HttpStatus.OK);
+                } else {
+                    return new ResponseEntity<Long>(0L, HttpStatus.NOT_MODIFIED);
+                }
+
+            } else {  //cliente
+
+                return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+            }
         }
+
     }
 
     @GetMapping("/page")
     public ResponseEntity<?> getPage(@PageableDefault(page = 0, size = 10, direction = Direction.ASC) Pageable oPageable) {
+
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+//        FacturaEntity oFacturaEntity = new FacturaEntity();
+
         Page<FacturaEntity> oPage = oFacturaRepository.findAll(oPageable);
-        return new ResponseEntity<Page<FacturaEntity>>(oPage, HttpStatus.OK);
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            if (oUsuarioEntity.getTipousuario().getId() == 1) { //administrador
+                return new ResponseEntity<Page<FacturaEntity>>(oPage, HttpStatus.OK);
+            } else {  //cliente
+//                if (oFacturaEntity2.getUsuario().getId().equals(oUsuarioEntity.getId())) {  //los datos pedidos por el cliente son sus propios datos?
+//                    return new ResponseEntity<Page<FacturaEntity>>(oPage, HttpStatus.OK);
+                return new ResponseEntity<Page<FacturaEntity>>(oFacturaRepository.findByFacturaXUsuario(oUsuarioEntity.getId(), oPageable), HttpStatus.OK);
+//                } else {
+//                    return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+//                }
+            }
+        }
     }
-    
+
     @GetMapping("/pagexusuario/{id}")
     public ResponseEntity<?> getPageXUsuario(@PageableDefault(page = 0, size = 10, direction = Direction.ASC) Pageable oPageable, @PathVariable(value = "id") Long id) {
 
@@ -142,10 +241,137 @@ public class FacturaController {
             return new ResponseEntity<>(null, HttpStatus.OK);
         }
     }
-    
+
+    @GetMapping("/allxusuario/{id}")
+    public ResponseEntity<?> getAllXUsuario(@PathVariable(value = "id") Long id) {
+        if (oUsuarioRepository.existsById(id)) {
+            UsuarioEntity oUsuarioEntity = oUsuarioRepository.getOne(id);
+            if (oUsuarioEntity.getTipousuario().getId() > 1) {
+                List<FacturaEntity> oPage = oFacturaRepository.findByUsuario(oUsuarioEntity);
+                return new ResponseEntity<List<FacturaEntity>>(oPage, HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+            }
+        } else {
+            return new ResponseEntity<>(null, HttpStatus.OK);
+        }
+    }
+
+
     @PostMapping("/fill/{amount}")
     public ResponseEntity<?> fill(@PathVariable(value = "amount") Long amount) {
-        return new ResponseEntity<Long>(oFillService.facturaFill(amount), HttpStatus.OK);
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            if (oUsuarioEntity.getTipousuario().getId() == 1) {
+                return new ResponseEntity<Long>(oFillService.facturaFill(amount), HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+            }
+        }
     }
+
+
+    @GetMapping("/page/usuario/{id}")
+    public ResponseEntity<?> getPageXusuario(@PageableDefault(page = 0, size = 10, direction = Direction.ASC) Pageable oPageable, @PathVariable(value = "id") Long id) {
+
+        if (oUsuarioRepository.existsById(id)) {
+            UsuarioEntity oUsuarioEntity = oUsuarioRepository.getOne(id);
+            Page<FacturaEntity> oPage = oFacturaRepository.findByUsuario(oUsuarioEntity, oPageable);
+            return new ResponseEntity<Page<FacturaEntity>>(oPage, HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>(null, HttpStatus.OK);
+        }
+
+    }
+
+  
+    //-----INFORMES---------
+    
+    @GetMapping("/allxusuario/10/{id}")
+    public ResponseEntity<?> getAllXUsuario10(@PathVariable(value = "id") Long id) {
+        if (oUsuarioRepository.existsById(id)) {
+            UsuarioEntity oUsuarioEntity = oUsuarioRepository.getOne(id);
+            if (oUsuarioEntity.getTipousuario().getId() > 1) {
+                List<FacturaEntity> oPage = oFacturaRepository.findTop10ByUsuarioOrderByFechaDesc(oUsuarioEntity);
+                return new ResponseEntity<List<FacturaEntity>>(oPage, HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+            }
+        } else {
+            return new ResponseEntity<>(null, HttpStatus.OK);
+        }
+    }
+
+    @GetMapping("/allxusuario/10/{id}/{fini}/{ffin}")
+    public ResponseEntity<?> getAllXUsuario10(@PathVariable(value = "id") Long id,
+            @PathVariable(value = "fini") String fini,
+            @PathVariable(value = "ffin") String ffin
+    ) {
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+        LocalDateTime fromDate = LocalDate.parse(fini, fmt).atStartOfDay();
+        LocalDateTime endDate = LocalDate.parse(ffin, fmt).atStartOfDay();
+
+        if (oUsuarioRepository.existsById(id)) {
+            UsuarioEntity oUsuarioEntity = oUsuarioRepository.getOne(id);
+            if (oUsuarioEntity.getTipousuario().getId() > 1) {
+                List<FacturaEntity> oPage = oFacturaRepository.findTop10ByUsuarioAndFechaGreaterThanEqualAndFechaLessThanEqualOrderByFechaDesc(oUsuarioEntity, fromDate, endDate);
+                return new ResponseEntity<List<FacturaEntity>>(oPage, HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+            }
+        } else {
+            return new ResponseEntity<>(null, HttpStatus.OK);
+        }
+    }
+
+    @GetMapping("/allxusuario/100/{id}/{fini}/{ffin}")
+    public ResponseEntity<?> getAllXUsuario100(@PathVariable(value = "id") Long id,
+            @PathVariable(value = "fini") String fini,
+            @PathVariable(value = "ffin") String ffin
+    ) {
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+        LocalDateTime fromDate = LocalDate.parse(fini, fmt).atStartOfDay();
+        LocalDateTime endDate = LocalDate.parse(ffin, fmt).atStartOfDay();
+
+        if (oUsuarioRepository.existsById(id)) {
+            UsuarioEntity oUsuarioEntity = oUsuarioRepository.getOne(id);
+            if (oUsuarioEntity.getTipousuario().getId() > 1) {
+                List<FacturaEntity> oPage = oFacturaRepository.findTop100ByUsuarioAndFechaGreaterThanEqualAndFechaLessThanEqualOrderByFechaDesc(oUsuarioEntity, fromDate, endDate);
+                return new ResponseEntity<List<FacturaEntity>>(oPage, HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+            }
+        } else {
+            return new ResponseEntity<>(null, HttpStatus.OK);
+        }
+    }
+
+    @GetMapping("/allxusuario/1000/{id}/{fini}/{ffin}")
+    public ResponseEntity<?> getAllXUsuario1000(@PathVariable(value = "id") Long id,
+            @PathVariable(value = "fini") String fini,
+            @PathVariable(value = "ffin") String ffin
+    ) {
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy");
+        LocalDateTime fromDate = LocalDate.parse(fini, fmt).atStartOfDay();
+        LocalDateTime endDate = LocalDate.parse(ffin, fmt).atStartOfDay();
+
+        if (oUsuarioRepository.existsById(id)) {
+            UsuarioEntity oUsuarioEntity = oUsuarioRepository.getOne(id);
+            if (oUsuarioEntity.getTipousuario().getId() > 1) {
+                List<FacturaEntity> oPage = oFacturaRepository.findTop1000ByUsuarioAndFechaGreaterThanEqualAndFechaLessThanEqualOrderByFechaDesc(oUsuarioEntity, fromDate, endDate);
+                return new ResponseEntity<List<FacturaEntity>>(oPage, HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+            }
+        } else {
+            return new ResponseEntity<>(null, HttpStatus.OK);
+        }
+    }
+
 
 }

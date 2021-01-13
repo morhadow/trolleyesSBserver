@@ -33,10 +33,13 @@
 package net.ausiasmarch.trolleyesSBserver.api;
 
 import java.util.List;
+import java.util.Optional;
 import javax.servlet.http.HttpSession;
 import net.ausiasmarch.trolleyesSBserver.entity.ProductoEntity;
+import net.ausiasmarch.trolleyesSBserver.entity.TipoproductoEntity;
 import net.ausiasmarch.trolleyesSBserver.entity.UsuarioEntity;
 import net.ausiasmarch.trolleyesSBserver.repository.ProductoRepository;
+import net.ausiasmarch.trolleyesSBserver.repository.TipoproductoRepository;
 import net.ausiasmarch.trolleyesSBserver.service.FillService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -53,6 +56,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -66,8 +70,11 @@ public class ProductoController {
     ProductoRepository oProductoRepository;
 
     @Autowired
-    FillService oFillService;
+    TipoproductoRepository oTipoproductoRepository;
 
+    @Autowired
+    FillService oFillService;
+    
     @GetMapping("/{id}")
     public ResponseEntity<?> get(@PathVariable(value = "id") Long id) {
         if (oProductoRepository.existsById(id)) {
@@ -111,17 +118,38 @@ public class ProductoController {
 
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable(value = "id") Long id, @RequestBody ProductoEntity oProductoEntity) {
-        oProductoEntity.setId(id);
-        if (oProductoRepository.existsById(id)) {
-            return new ResponseEntity<ProductoEntity>(oProductoRepository.save(oProductoEntity), HttpStatus.OK);
+
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
         } else {
-            return new ResponseEntity<Long>(0L, HttpStatus.NOT_MODIFIED);
+            if (oUsuarioEntity.getTipousuario().getId() == 1) { //administrador
+                oProductoEntity.setId(id);
+                if (oProductoRepository.existsById(id)) {
+                    return new ResponseEntity<ProductoEntity>(oProductoRepository.save(oProductoEntity), HttpStatus.OK);
+                } else {
+                    return new ResponseEntity<Long>(0L, HttpStatus.NOT_MODIFIED);
+                }
+            } else {  //cliente
+                return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+            }
         }
+
     }
 
     @PostMapping("/fill/{amount}")
     public ResponseEntity<?> fill(@PathVariable(value = "amount") Long amount) {
-        return new ResponseEntity<Long>(oFillService.productoFill(amount), HttpStatus.OK);
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+        if (oUsuarioEntity == null) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            if (oUsuarioEntity.getTipousuario().getId() == 1) {
+                return new ResponseEntity<Long>(oFillService.productoFill(amount), HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+            }
+        }
     }
 
     @DeleteMapping("/{id}")
@@ -147,11 +175,101 @@ public class ProductoController {
     }
 
     @GetMapping("/page")
-    public ResponseEntity<?> getPage(@PageableDefault(page = 0, size = 10, direction = Direction.ASC) Pageable oPageable
+    public ResponseEntity<?> getPage(@RequestParam("filter") Optional<String> strSearch, @PageableDefault(page = 0, size = 10, direction = Direction.ASC) Pageable oPageable
     ) {
-
-        Page<ProductoEntity> oPage = oProductoRepository.findAll(oPageable);
+        Page<ProductoEntity> oPage = null;
+        if (strSearch.isPresent()) {
+            oPage = oProductoRepository.findByCodigoContainingIgnoreCaseOrNombreContainingIgnoreCaseOrTipoproductoNombreContainingIgnoreCase(strSearch.get(), strSearch.get(), strSearch.get(), oPageable);
+        } else {
+            oPage = oProductoRepository.findAll(oPageable);
+        }
         return new ResponseEntity<Page<ProductoEntity>>(oPage, HttpStatus.OK);
     }
 
+    @GetMapping("/page/tipoproducto/{id}")
+    public ResponseEntity<?> getPageXTipoproducto(@PageableDefault(page = 0, size = 10, direction = Direction.ASC) Pageable oPageable, @PathVariable(value = "id") Long id) {
+
+        if (oTipoproductoRepository.existsById(id)) {
+            TipoproductoEntity oTipoproductoEntity = oTipoproductoRepository.getOne(id);
+            Page<ProductoEntity> oPage = oProductoRepository.findByTipoproducto(oTipoproductoEntity, oPageable);
+            return new ResponseEntity<Page<ProductoEntity>>(oPage, HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>(null, HttpStatus.OK);
+        }
+
+    }
+    
+    //-----------INFORMES------------
+    
+    @GetMapping("/orderdescuento/10/desc")
+    public ResponseEntity<?> get10ProductoOrderByDescuentoDesc() {
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+
+        if (oUsuarioEntity == null || oUsuarioEntity.getTipousuario().getId()!=1) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            List<ProductoEntity> oPage = oProductoRepository.findTop10ByOrderByDescuentoDesc();
+            return new ResponseEntity<List<ProductoEntity>>(oPage, HttpStatus.OK);
+        }
+    }
+    
+    @GetMapping("/orderdescuento/50/desc")
+    public ResponseEntity<?> get50ProductoOrderByDescuentoDesc() {
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+
+        if (oUsuarioEntity == null || oUsuarioEntity.getTipousuario().getId()!=1) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            List<ProductoEntity> oPage = oProductoRepository.findTop50ByOrderByDescuentoDesc();
+            return new ResponseEntity<List<ProductoEntity>>(oPage, HttpStatus.OK);
+        }
+    }
+    
+    @GetMapping("/orderdescuento/100/desc")
+    public ResponseEntity<?> get100ProductoOrderByDescuentoDesc() {
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+
+        if (oUsuarioEntity == null || oUsuarioEntity.getTipousuario().getId()!=1) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            List<ProductoEntity> oPage = oProductoRepository.findTop100ByOrderByDescuentoDesc();
+            return new ResponseEntity<List<ProductoEntity>>(oPage, HttpStatus.OK);
+        }
+    }
+    
+    @GetMapping("/orderdescuento/10/asc")
+    public ResponseEntity<?> get10ProductoOrderByDescuentoAsc() {
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+
+        if (oUsuarioEntity == null || oUsuarioEntity.getTipousuario().getId()!=1) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            List<ProductoEntity> oPage = oProductoRepository.findTop10ByOrderByDescuentoAsc();
+            return new ResponseEntity<List<ProductoEntity>>(oPage, HttpStatus.OK);
+        }
+    }
+    
+    @GetMapping("/orderdescuento/50/asc")
+    public ResponseEntity<?> get50ProductoOrderByDescuentoAsc() {
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+
+        if (oUsuarioEntity == null || oUsuarioEntity.getTipousuario().getId()!=1) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            List<ProductoEntity> oPage = oProductoRepository.findTop50ByOrderByDescuentoAsc();
+            return new ResponseEntity<List<ProductoEntity>>(oPage, HttpStatus.OK);
+        }
+    }
+    
+    @GetMapping("/orderdescuento/100/asc")
+    public ResponseEntity<?> get100ProductoOrderByDescuentoAsc() {
+        UsuarioEntity oUsuarioEntity = (UsuarioEntity) oHttpSession.getAttribute("usuario");
+
+        if (oUsuarioEntity == null || oUsuarioEntity.getTipousuario().getId()!=1) {
+            return new ResponseEntity<>(null, HttpStatus.UNAUTHORIZED);
+        } else {
+            List<ProductoEntity> oPage = oProductoRepository.findTop100ByOrderByDescuentoAsc();
+            return new ResponseEntity<List<ProductoEntity>>(oPage, HttpStatus.OK);
+        }
+    }
 }
